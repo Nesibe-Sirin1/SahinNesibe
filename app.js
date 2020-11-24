@@ -5,68 +5,89 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 app.set('view engine', 'pug');
-app.set('views','./views');
+app.set('views', './views');
 
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/shop');
 
 const errorController = require('./controllers/errors');
-const sequelize =require('./utility/database');
+const sequelize = require('./utility/database');
 
-const Category =require('./models/category');
-const Product =require('./models/product');
-const { SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG } = require('constants');
-const User=require('./models/user');
+const Category = require('./models/category');
+const Product = require('./models/product');
+const User = require('./models/user');
+const Cart = require('./models/cart');
+const CartItem = require('./models/cartItem');
+const Order = require('./models/order');
+const OrderItem = require('./models/orderItem');
+
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use((req,res,next) =>{
+app.use((req, res, next) => {
     User.findByPk(1)
-        .then(user =>{
-            req.user =user;
+        .then(user => {
+            req.user = user;
             next();
         })
-        .catch(err =>{
+        .catch(err => {
             console.log(err);
         })
-})
+});
 
-// routesp
+// routes
 app.use('/admin', adminRoutes);
 app.use(userRoutes);
 
 app.use(errorController.get404Page);
 
-//Product.hasOne(Category);
-Product.belongsTo(Category,{      //bir üün bir category
-    foreignKey:{
-        allowNull:false
-    }
-});   
-Category.hasMany(Product);   //bir category birden fazla ürün
+Product.belongsTo(Category, { foreignKey: { allowNull: false } });
+Category.hasMany(Product);
 
 Product.belongsTo(User);
 User.hasMany(Product);
 
+User.hasOne(Cart);
+Cart.belongsTo(User);
+
+Cart.belongsToMany(Product, { through: CartItem });
+Product.belongsToMany(Cart, { through: CartItem });
+
+Order.belongsTo(User);
+User.hasMany(Order);
+
+Order.belongsToMany(Product,{through :OrderItem});
+Product.belongsToMany(Order,{through :OrderItem});
+
+let _user;
 sequelize
     //.sync({ force: true })
     .sync()
-    .then(() =>{
+    .then(() => {
+
         User.findByPk(1)
-            .then(user =>{
-                if(!user){
-                    return User.create({name:'nesibe_sahinnn',email:'nesibe.ns.sahin'});
+            .then(user => {
+                if (!user) {
+                    return User.create({ name: 'sadikturan', email: 'email@gmail.com' });
                 }
                 return user;
-            }).then(user =>{
+            }).then(user => {
+                _user = user;
+                return user.getCart();
+            }).then(cart => {
+                if (!cart) {
+                    return _user.createCart();
+                }
+                return cart;
+            }).then(() => {
                 Category.count()
                     .then(count => {
-                        if(count===0){
+                        if (count === 0) {
                             Category.bulkCreate([
-                                {name:'Telefon', description:'telefon kategorisi'},
-                                {name:'Bilgisayar', description:'bilgisayar kategorisi'},
-                                {name:'Elektronik', description:'Elektronik kategorisi'}
+                                { name: 'Telefon', description: 'telefon kategorisi' },
+                                { name: 'Bilgisayar', description: 'bilgisayar kategorisi' },
+                                { name: 'Elektronik', description: 'elektronik kategorisi' }
                             ]);
                         }
                     });
